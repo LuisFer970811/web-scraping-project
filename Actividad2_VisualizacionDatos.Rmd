@@ -1,0 +1,303 @@
+---
+title: "Funciones en R"
+author: 
+  - name: "Luis Fernando Ayala"
+    affiliation: "Máster en Análisis y Divulgación de Datos · CEU San Pablo"
+date: "`r format(Sys.Date(), '%d de %B de %Y')`"
+
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    number_sections: true
+    theme: dark        #Fondo negro hacker
+    highlight: zenburn   #Verde/negro estilo terminal profesional
+    code_folding: show
+    code_download: true
+    df_print: paged
+    fig_caption: true
+    self_contained: true
+always_allow_html: true
+---
+
+## Sección: GGPLOT 
+
+**1.1. Replica Gráfico**
+
+```{r, warning=FALSE, message=FALSE}
+
+library(ggplot2)
+library(dplyr)
+
+centros <- mpg %>%  # Creamos un nuevo objeto llamado "centros" a partir del dataset mpg
+  group_by(drv) %>% # Agrupamos la información por la variable `drv` (tipo de tracción), lo que nos permitirá calcular estadísticas                       por cada grupo
+  summarise(
+    displ = mean(displ, na.rm = TRUE), # Calculamos la media de la cilindrada para cada tipo de tracción, ignorando valores                                                  faltantes  
+    hwy   = mean(hwy,   na.rm = TRUE), # Calculamos la media del consumo en autopista para cada tipo de tracción.
+    .groups = "drop"
+  ) # genero un plano para poder trasar, por cada tipo y encontrar sus medias, esto facilita a que pueda graficar de manera eficiente.
+
+centros
+
+ggplot(mpg, aes(x=displ, y=hwy, color= class))+
+         geom_point(shape= 2, size = 3)+
+  facet_grid(~ drv)+
+  labs(x= "Cil.Ltros (displ)", 
+       y= "Cons. autopista (hwy)",
+       title= " Consumo en autopista segun cilindrada y tipo de vehiculo",
+       subtitle="Dataset: mpg ", 
+       color= "Clase")+ 
+  geom_smooth(method = lm,
+              se = FALSE,
+              colour="black", 
+              linetype= 2
+)+
+  theme_minimal()+
+  theme(legend.position = "bottom", plot.title = element_text(face = "bold"))+
+  geom_point(
+    data = centros,
+    aes(x = displ, y = hwy),
+    color = "red",
+    size = 4
+  )
+```
+
+<span style="color: green; font-weight: bold;"> **Nota:** En este gráfico trabajo con el dataset mpg para analizar la relación entre la cilindrada del motor y el consumo en autopista, utilizando el color para diferenciar la clase de vehículo y separando el análisis por tipo de tracción mediante facetas, lo que me permite comparar los comportamientos sin mezclar los grupos; primero calculo los valores medios de cilindrada y consumo para cada tipo de tracción con el objetivo de obtener un punto representativo de cada grupo, luego represento todas las observaciones individuales con puntos para ver la dispersión real de los datos, añado una línea de regresión lineal discontinua que resume la tendencia general entre ambas variables y, finalmente, incorporo puntos rojos que indican el vehículo promedio de cada tipo de tracción, todo ello con un diseño limpio y una leyenda clara que facilita la interpretación visual y la comparación entre grupos.
+</span>
+
+**1.2 Mapa Europa**
+
+**Haz un mapa de Europa coloreando cada país según su población estimada (pop_est), usando los datos obtenidos con ne_countries(). Los países más poblados deben aparecer en colores más intensos. Añade título, leyenda y un estilo limpio.**
+
+
+
+```{r, warning=FALSE, message=FALSE}
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+library(leaflet)
+world_act <- ne_countries(scale = "medium", returnclass = "sf") 
+# Descargamos el mapa mundial de países desde Natural Earth
+# Usamos una escala media para equilibrar detalle y peso del objeto
+# El argumento returnclass = "sf" permite trabajar el mapa directamente con ggplot
+# Referencia: https://bookdown.org/keilor_rojas/CienciaDatos/elaboraci%C3%B3n-de-mapas-en-r.html
+world_act
+
+world_act1 <- world_act %>% 
+  select(continent, pop_est, geounit=name_long, geometry) %>% 
+  mutate(pop_est=log10(pop_est)) %>% 
+  filter(continent== "Europe") 
+# Hago una limpieza rápida y extraigo únicamente las variables con las que voy a trabajar.
+
+world_act1
+  
+g_mapa <- ggplot(data = world_act1) + 
+  geom_sf(aes(fill=pop_est), color= "white", linewidth= 0.25)+
+  scale_fill_viridis_c(option = "cividis" ,  direction = -1 )+
+  labs(
+    title= "Europa: Estimacion poblacion por pais",
+    fill= "Poblacion estimada (log10)",
+    caption= "Fuente: Natural Earth"
+  )+
+  theme_minimal()+
+  coord_sf(crs = 3035)
+
+g_mapa
+
+# Aquí preparo un objeto espacial (ggplot) con los países europeos y construyo un mapa coroplético (mejor visión al momento de ver el mapa) donde el color representa la población estimada en escala logarítmica, permitiendo una comparación visual clara entre países con tamaños poblacionales muy distintos. 
+```
+
+<span style="color: green; font-weight: bold;"> **Nota:** En este ejercicio descargo el mapa mundial de países desde Natural Earth utilizando una escala media y el formato sf, lo que me permite trabajar directamente con ggplot, luego realizo una limpieza básica de los datos seleccionando únicamente el continente, la población estimada y la geometría, aplico una transformación logarítmica a la población para reducir la asimetría entre países muy poblados y menos poblados y filtro únicamente los países europeos, y finalmente construyo un mapa coroplético en el que el color representa la población estimada, usando una paleta continua invertida para que los países más poblados aparezcan con tonos más intensos, incorporando un diseño limpio y una proyección adecuada para Europa que facilita la comparación visual entre países.
+</span>
+
+## Sección : Funciones
+
+**2.1. Genere una función llamada clasificar_flores() que reciba el dataset iris (instalado en R) por defecto y cree una nueva variable llamada tamaño_petalo, de forma que si la variable Petal.Length es mayor a 4 devuelva “Largo” y en caso contrario devuelva “Corto”.**
+
+```{r}
+head(iris)
+names(iris)
+min(iris$Petal.Length)
+max(iris$Petal.Length)
+
+clasificar_flores <- function(data = iris) {
+  
+  data$tamano_petalo <- NA
+  
+  for (i in 1:nrow(data)) {
+    
+    if (data$Petal.Length[i] > 4) {
+      data$tamano_petalo[i] <- "Largo"
+    } else {
+      data$tamano_petalo[i] <- "Corto"
+    }
+    
+  }
+  
+  return(data)
+}
+
+iris_clasificado <- clasificar_flores()
+
+head(iris_clasificado[, c("Petal.Length", "tamano_petalo")])
+table(iris_clasificado$tamano_petalo)
+
+```
+<span style="color: green; font-weight: bold;"> **Nota:** En este ejercicio comienzo explorando el dataset iris para verificar su estructura, los nombres de las variables y el rango de valores de Petal.Length, lo que me permite comprobar que el umbral elegido es coherente, y a partir de ahí defino una función llamada clasificar_flores() que recibe el dataset por defecto, crea una nueva variable vacía llamada tamano_petalo y recorre el conjunto de datos fila por fila mediante un bucle for, utilizando una estructura if/else para clasificar cada observación como “Largo” cuando la longitud del pétalo es mayor que 4 o “Corto” en caso contrario, devolviendo finalmente el dataset con la nueva columna añadida; por último, ejecuto la función, inspecciono las primeras filas para validar la clasificación y utilizo una tabla de frecuencias para comprobar cuántas observaciones quedan en cada categoría.
+</span>
+
+
+**2.2 En este ejercicio vamos a programar una pequeña simulación divertida**
+
+```{r}
+
+adivina_numero <- function() {
+  
+  numero_secreto <- sample(1:50, 1)
+  intentos_max <- 10
+  
+  min <- 1
+  max <- 50
+  
+  for (i in 1:intentos_max) {
+    
+    intento <- sample(min:max, 1)
+    
+    if (intento == numero_secreto) {
+      return(
+        paste("Enhorabuena, has encontrado el numero",
+              numero_secreto, "en", i, "intentos")
+      )
+      
+    } else if (intento < numero_secreto) {
+      cat("Intento", i, ":", intento, "- Bajo\n")
+      min <- intento + 1
+      
+    } else {
+      cat("Intento", i, ":", intento, "- Alto\n")
+      max <- intento - 1
+    }
+  }
+  
+  return(
+    paste("No se encontro el numero.",
+          "El numero secreto era", numero_secreto)
+  )
+}
+
+adivina_numero()
+
+```
+
+<span style="color: green; font-weight: bold;">  **Nota:** En este ejercicio programo una simulación en la que la máquina intenta adivinar un número secreto entre 1 y 50, que se genera de forma aleatoria y se mantiene oculto hasta el final, estableciendo un máximo de 10 intentos; comienzo definiendo un rango inicial mínimo y máximo, y mediante un bucle for la máquina va realizando intentos aleatorios dentro de ese rango, comparando en cada iteración el valor propuesto con el número secreto mediante una estructura if/else, de forma que si acierta devuelve inmediatamente un mensaje indicando el número encontrado y el intento en el que lo logra, si el intento es menor que el número secreto muestra el mensaje “Alto” y ajusta el límite inferior del rango, y si es mayor muestra “Bajo” y ajusta el límite superior, reduciendo progresivamente el espacio de búsqueda; finalmente, si tras los 10 intentos no se consigue adivinar el número, la función devuelve un mensaje informando del fallo y revela cuál era el número secreto.
+</span>
+
+## Sección : Distribucion de Probabilidades
+
+**3.1. Simule 10 mil valores de una distribución 𝑁(50,10^2). Calcule la probabilidad de que la variable tome valores superiores a 60.**
+
+```{r}
+
+x_act <- rnorm(n = 10000, mean = 50, sd =10 )
+
+probabilidad_ejercicio <- mean(x_act > 60)
+
+probabilidad_ejercicio
+
+hist(x_act,   
+     breaks = 30, col = "white", main = "Histograma de la simulacion", ylim= c(0,1100))
+abline(v=50, col="blue4", lwd= 2, lty=2)
+
+text(x = 50,  y = 1000,  labels = "media=50",  col = "red4",  pos = 2)
+
+
+
+
+```
+
+<span style="color: green; font-weight: bold;"> **Nota:** En este ejercicio simulo 10 000 observaciones de una distribución normal con media 50 y desviación estándar 10 utilizando la función rnorm(), lo que me permite aproximar el comportamiento teórico de la variable mediante simulación, y a partir de esos valores estimo la probabilidad de que la variable tome valores superiores a 60 calculando la proporción de observaciones que cumplen dicha condición, es decir, interpretando la media de una expresión lógica como una frecuencia relativa, obteniendo así una estimación empírica de la probabilidad solicitada.
+</span>
+
+**3.2. En estadística, el Teorema Central del Límite indica que muchas distribuciones, bajo ciertas condiciones, tienden a aproximarse a una distribución normal. En este ejercicio deberás simular datos de dos distribuciones diferentes: Uniforme y Poisson. Explica en qué casos y por qué estas distribuciones se aproximan a una normal.**
+
+```{r}
+num_rep <- 10000
+num_muestra <- 30
+
+m_unif <- runif(num_rep, min = 0, max=1)
+
+medias_unif <- replicate(num_rep, mean(runif(num_muestra,0,1)))
+
+par(mfrow = c(2,2))
+
+hist(m_unif, main= "Uniforme (0,1)", xlab = "x", col= "blue")
+
+hist(medias_unif, main = paste0("Medias de Uniforme (n=", num_muestra, ")"), xlab = "media", col = "blue")
+
+
+#Poisson
+
+lambda_act <-  3
+
+x_poisson <- rpois(num_rep, lambda = lambda_act)
+
+medias_pois <- replicate(num_rep, mean(rpois(num_muestra, lambda = lambda_act)))
+
+hist(x_poisson, main = paste0("Poisson(lambda=", lambda_act, ")"), xlab = "x", col = "red")
+hist(medias_pois, main = paste0("Medias de Poisson (n=", num_muestra, ")"),xlab = "media", col = "red")
+
+
+```
+
+
+<span style="color: green; font-weight: bold;"> **Nota:** En este ejercicio aplico el Teorema Central del Límite mediante simulación, comenzando por definir el número de repeticiones y el tamaño muestral, y genero primero datos de una distribución uniforme (0,1) para mostrar que sus valores originales no siguen una forma normal, mientras que al calcular repetidamente las medias muestrales de tamaño 30 se obtiene una distribución mucho más simétrica y con forma de campana; posteriormente repito el mismo procedimiento con una distribución Poisson con parámetro lambda = 3, observando que aunque los datos originales son discretos y asimétricos, la distribución de sus medias muestrales también se aproxima a una normal cuando el tamaño de muestra es suficientemente grande, lo que confirma que, bajo las condiciones de independencia y varianza finita, la media muestral tiende a una distribución normal independientemente de la distribución original.
+</span>
+
+## Seccion : Web Scrapping
+
+**4.1. Obtén de https://quotes.toscrape.com/ las citas de las primeras 5 páginas. Debes recoger en un dataset la cita y el autor.**
+
+```{r}
+library(rvest) #Web scraping
+library(purrr) #captar toda la información / nos permite hacer bucles
+
+pages_act <- paste0("https://quotes.toscrape.com/page/", 1:5, "/")
+
+scrape_act <- function(url_actividad){
+  
+  page <- read_html(url_actividad)
+  
+  bloques <- page %>% html_elements(".quote")
+  
+  data.frame(
+    Cita = bloques %>% 
+      html_element(".text") %>% 
+      html_text(trim = TRUE)%>% 
+      iconv(from = "UTF-8", to = "ASCII", sub = ""),
+    
+    
+    Autor = bloques %>% 
+      html_element(".author") %>% 
+      html_text(trim = TRUE)%>% 
+      iconv(from = "UTF-8", to = "ASCII", sub = ""),
+    
+    stringsAsFactors = FALSE
+  )
+}
+
+quotes_df <- map_df(pages_act, scrape_act)
+
+quotes_df
+
+
+```
+
+
+<span style="color: green; font-weight: bold;"> **Nota: **En este ejercicio realizo un web scraping del sitio quotes.toscrape.com para extraer las citas y sus autores de las primeras cinco páginas, comenzando por construir un vector con las URLs a partir de un patrón común y utilizando la librería rvest para leer y parsear el contenido HTML de cada página, luego defino una función que identifica los bloques de citas mediante selectores CSS, extrae el texto de la cita y el nombre del autor desde los elementos correspondientes y limpia los caracteres especiales forzando la conversión a ASCII para evitar problemas de codificación, y finalmente aplico esta función a todas las páginas usando map_df del paquete purrr, lo que me permite recorrer automáticamente las URLs y combinar los resultados en un único dataset estructurado listo para su análisis.
+</span>
+
+
+
